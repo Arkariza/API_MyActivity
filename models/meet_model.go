@@ -1,7 +1,7 @@
 package models
 
 type Meet struct {
-    ID            int     `json:"id" gorm:"primaryKey:autoIncrement"`
+    ID            int     `json:"id" gorm:"primaryKey;autoIncrement"`
     ClientName    string  `json:"client_name" gorm:"type:varchar(255)"`
     Address       string  `json:"address" gorm:"type:varchar(255)"`
     ProspectStatus string `json:"prospect_status" gorm:"type:varchar(255)"`

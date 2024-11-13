@@ -8,6 +8,6 @@ type Call struct {
     Numphone       int       `json:"numphone"`
     ProspectStatus string    `json:"prospect_status" gorm:"type:varchar(255)"`
     Date           time.Time `json:"date"`
-    Note           *string   `json:"note" gorm:"type:text"`
+    Note           string    `json:"note" gorm:"type:text"`
     CallResult     string    `json:"call_result" gorm:"type:text"`
 }

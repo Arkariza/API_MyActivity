@@ -3,7 +3,7 @@ package models
 import "time"
 
 type Lead struct {
-	Id          int       `gorm:"primarykey:autoincrement" json:"Id"`
+	Id          int       `gorm:"primaryKey;autoincrement" json:"Id"`
 	NumPhone    int16     `gorm:"integer(15)" json:"NumPhone"`
 	Priority    string    `gorm:"varchar(10)" json:"Priority"`
 	Latitude    float64   `gorm:"type:decimal(10,6)" json:"latitude"`
