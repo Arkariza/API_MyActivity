@@ -1,19 +1,22 @@
 package models
 
-import "time"
+import (
+    "time"
+    "go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type Lead struct {
-	Id          int       `gorm:"primaryKey;autoincrement" json:"Id"`
-	NumPhone    int16     `gorm:"integer(15)" json:"NumPhone"`
-	Priority    string    `gorm:"varchar(10)" json:"Priority"`
-	Latitude    float64   `gorm:"type:decimal(10,6)" json:"latitude"`
-	Longitude   float64   `gorm:"type:decimal(10,6)" json:"longitude"`
-	CreateAt    time.Time `gorm:"type:timestamp;not null" json:"created_at"`
-	DateSubmit  time.Time `gorm:"type:timestamp" json:"date_submit"`
-	ClientName  string    `gorm:"varchar(50)" json:"ClientName"`
-	IdBFA       uint      `gorm:"type:integer" json:"bfa_id"`
-	IdRefeal    uint      `gorm:"type:integer" json:"referral_id"`
-	TypeLead    string    `gorm:"varchar(10)" json:"TypeLead"`
-	NoPolicy    int32     `gorm:"integer" json:"NoPolicy"`
-	Information string    `gorm:"text" json:"Information"`
+	primitive.ObjectID 	  `bson:"_id,omitempty" json:"id"`
+	NumPhone    int16     `bson:"integer(15)" json:"NumPhone"`
+	Priority    string    `bson:"varchar(10)" json:"Priority"`
+	Latitude    float64   `bson:"type:decimal(10,6)" json:"latitude"`
+	Longitude   float64   `bson:"type:decimal(10,6)" json:"longitude"`
+	CreateAt    time.Time `bson:"type:timestamp;not null" json:"created_at"`
+	DateSubmit  time.Time `bson:"type:timestamp" json:"date_submit"`
+	ClientName  string    `bson:"varchar(50)" json:"ClientName"`
+	IdBFA       uint      `bson:"type:integer" json:"bfa_id"`
+	IdRefeal    uint      `bson:"type:integer" json:"referral_id"`
+	TypeLead    string    `bson:"varchar(10)" json:"TypeLead"`
+	NoPolicy    int32     `bson:"integer" json:"NoPolicy"`
+	Information string    `bson:"text" json:"Information"`
 }

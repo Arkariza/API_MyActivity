@@ -1,22 +1,25 @@
 package models
 
-import "time"
+import (
+    "time"
+    "go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 const (
-    RoleBFA   int8 = 1
-    RoleStaff int8 = 2
+    RoleBFA   int = 1
+    RoleStaff int = 2
 )
 
 type User struct {
-    ID        int64     `gorm:"primaryKey;autoIncrement" json:"id"`
-    Username  string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"username"`
-    Email     string    `gorm:"type:varchar(255);uniqueIndex;not null" json:"email"`
-    PhoneNum  string    `gorm:"type:varchar(15);index" json:"phone_num"`
-    Password  string    `gorm:"type:varchar(255);not null" json:"password"`
-    Image     string    `gorm:"type:varchar(255)" json:"image"`
-    CreatedAt time.Time `gorm:"type:timestamp;not null;default:CURRENT_TIMESTAMP" json:"created_at"`
-    LastLogin time.Time `gorm:"type:timestamp" json:"last_login"`
-    Role      int8      `gorm:"type:smallint;default:2;not null" json:"role"`
+    ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`         
+    Username  string             `bson:"username" json:"username"`
+    Email     string             `bson:"email" json:"email"`
+    PhoneNum  string             `bson:"phone_num" json:"phone_num"`
+    Password  string             `bson:"password" json:"password"`
+    Image     string             `bson:"image" json:"image"`
+    CreatedAt time.Time          `bson:"created_at" json:"created_at"`
+    LastLogin time.Time          `bson:"last_login,omitempty" json:"last_login"`
+    Role      int                `bson:"role" json:"role"` 
 }
 
 func (u *User) IsBFA() bool {
