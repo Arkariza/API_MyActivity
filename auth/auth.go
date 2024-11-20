@@ -21,6 +21,7 @@ func NewAuthCommand(collection *mongo.Collection) *AuthCommand {
     return &AuthCommand{collection: collection}
 }
 
+
 type LoginRequest struct {
     Username string `json:"username"`
     Password string `json:"password"`
@@ -102,6 +103,10 @@ func (c *AuthCommand) Register(ctx context.Context, req RegisterRequest) (*model
     }
 
     return &user, nil
+}
+
+func (c *AuthCommand) GetSecretKey() string {
+    return jwtSecret
 }
 
 const jwtSecret = "your-secret-key"

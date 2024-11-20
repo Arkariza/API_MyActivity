@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <p>
+        package LeadControllers
+
+import (
+    "context"
+    "net/http"
+    "time"
+    "github.com/Arkariza/API_MyActivity/models/ManageLead"
+    "github.com/gin-gonic/gin"
+    "go.mongodb.org/mongo-driver/bson"
+    "go.mongodb.org/mongo-driver/bson/primitive"
+    "go.mongodb.org/mongo-driver/mongo"
+    "go.mongodb.org/mongo-driver/mongo/options"
+)
+
+// ... (previous code remains the same)
+
+// GetLeads retrieves all leads with optional filtering and pagination
+func (lc *LeadController) GetLeads(c *gin.Context) {
+    var leads []models.Lead
+    
+    // Get query parameters for pagination
+    page := c.DefaultQuery("page", "1")
+    limit := c.DefaultQuery("limit", "10")
+    status := c.DefaultQuery("status", "")
+    
+    // Convert string parameters to appropriate types
+    pageNum, _ := strconv.Atoi(page)
+    limitNum, _ := strconv.Atoi(limit)
+    
+    // Calculate skip value for pagination
+    skip := (pageNum - 1) * limitNum
+    
+    // Create filter based on query parameters
+    filter := bson.M{}
+    if status != "" {
+        filter["Status"] = status
+    }
+    
+    // Set up options for pagination and sorting
+    opts := options.Find().
+        SetSkip(int64(skip)).
+        SetLimit(int64(limitNum)).
+        SetSort(bson.D{{Key: "CreateAt", Value: -1}})
+    
+    // Execute query
+    cursor, err := lc.collection.Find(context.Background(), filter, opts)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leads"})
+        return
+    }
+    defer cursor.Close(context.Background())
+    
+    if err = cursor.All(context.Background(), &leads); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode leads"})
+        return
+    }
+    
+    // Get total count for pagination
+    total, err := lc.collection.CountDocuments(context.Background(), filter)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to count leads"})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{
+        "data": leads,
+        "total": total,
+        "page": pageNum,
+        "limit": limitNum,
+    })
+}
+
+// GetLeadByID retrieves a specific lead by its ID
+func (lc *LeadController) GetLeadByID(c *gin.Context) {
+    id := c.Param("id")
+    objectID, err := primitive.ObjectIDFromHex(id)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+        return
+    }
+    
+    var lead models.Lead
+    err = lc.collection.FindOne(context.Background(), bson.M{"_id": objectID}).Decode(&lead)
+    if err == mongo.ErrNoDocuments {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Lead not found"})
+        return
+    } else if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve lead"})
+        return
+    }
+    
+    c.JSON(http.StatusOK, lead)
+}
+
+// DeleteLead removes a lead by its ID
+func (lc *LeadController) DeleteLead(c *gin.Context) {
+    id := c.Param("id")
+    objectID, err := primitive.ObjectIDFromHex(id)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+        return
+    }
+    
+    result, err := lc.collection.DeleteOne(context.Background(), bson.M{"_id": objectID})
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete lead"})
+        return
+    }
+    
+    if result.DeletedCount == 0 {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Lead not found"})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{"message": "Lead successfully deleted"})
+}
+
+// GetLeadStatistics retrieves statistical information about leads
+func (lc *LeadController) GetLeadStatistics(c *gin.Context) {
+    // Pipeline for aggregating statistics
+    pipeline := []bson.M{
+        {
+            "$facet": {
+                "statusCounts": []bson.M{
+                    {
+                        "$group": bson.M{
+                            "_id": "$Status",
+                            "count": bson.M{"$sum": 1},
+                        },
+                    },
+                },
+                "priorityCounts": []bson.M{
+                    {
+                        "$group": bson.M{
+                            "_id": "$Priority",
+                            "count": bson.M{"$sum": 1},
+                        },
+                    },
+                },
+                "dailyLeads": []bson.M{
+                    {
+                        "$group": bson.M{
+                            "_id": bson.M{
+                                "$dateToString": bson.M{
+                                    "format": "%Y-%m-%d",
+                                    "date": "$CreateAt",
+                                },
+                            },
+                            "count": bson.M{"$sum": 1},
+                        },
+                    },
+                    {"$sort": bson.M{"_id": -1}},
+                    {"$limit": 7},
+                },
+            },
+        },
+    }
+    
+    var results []bson.M
+    cursor, err := lc.collection.Aggregate(context.Background(), pipeline)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve statistics"})
+        return
+    }
+    
+    if err = cursor.All(context.Background(), &results); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode statistics"})
+        return
+    }
+    
+    c.JSON(http.StatusOK, results[0])
+}
+
+// GetLeadsByStatus retrieves leads grouped by status
+func (lc *LeadController) GetLeadsByStatus(c *gin.Context) {
+    pipeline := []bson.M{
+        {
+            "$group": bson.M{
+                "_id": "$Status",
+                "leads": bson.M{"$push": "$$ROOT"},
+                "count": bson.M{"$sum": 1},
+            },
+        },
+        {
+            "$sort": bson.M{"count": -1},
+        },
+    }
+    
+    var results []struct {
+        Status string       `bson:"_id" json:"status"`
+        Leads  []models.Lead `bson:"leads" json:"leads"`
+        Count  int          `bson:"count" json:"count"`
+    }
+    
+    cursor, err := lc.collection.Aggregate(context.Background(), pipeline)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve leads by status"})
+        return
+    }
+    
+    if err = cursor.All(context.Background(), &results); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to decode leads by status"})
+        return
+    }
+    
+    c.JSON(http.StatusOK, results)
+}
+    </p>
+</body>
+</html>
