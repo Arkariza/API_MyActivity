@@ -11,7 +11,7 @@ import(
 const (
     DbHost     = "localhost"
     DbPort     = "27017"
-    DbUser     = "Arkariza"
+    DbUser     = "Rachel Protect"
     DbPassword = ""
     DbName     = "my_activity_api"
 )

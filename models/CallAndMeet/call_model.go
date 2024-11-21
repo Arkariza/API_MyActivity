@@ -14,3 +14,7 @@ type Call struct {
     Note           string    `json:"note" bson:"type:text"`
     CallResult     string    `json:"call_result" bson:"type:text"`
 }
+
+func (u *Call) TableName() string {
+    return "call"
+}
