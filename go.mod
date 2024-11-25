@@ -40,6 +40,7 @@ require (
 )
 
 require (
+	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/jinzhu/inflection v1.0.0 // indirect

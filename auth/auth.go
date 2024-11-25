@@ -40,6 +40,7 @@ type TokenResponse struct {
     TokenType   string       `json:"token_type"`
     ExpiresIn   int64        `json:"expires_in"`
     User        models.User  `json:"user"`
+    Role        int          `json:"role"`
 }
 
 func (c *AuthCommand) Login(ctx context.Context, req LoginRequest) (*TokenResponse, error) {
