@@ -1,66 +1,71 @@
 package models
 
 import (
-	"errors"
-	"strings"
-	"time"
+    "errors"
+    "strings"
+    "time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
+    "go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Meet struct {
-	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	UserID          int                `json:"user_id" bson:"user_id"`
-	ClientName      string             `json:"client_name" bson:"client_name" validate:"required,min=2,max=100"`
-	Address         string             `json:"address" bson:"address" validate:"required"`
-	ProspectStatus  string             `json:"prospect_status" bson:"prospect_status"`
-	Latitude        float64            `json:"latitude" bson:"latitude" validate:"required"`
-	Longitude       float64            `json:"longitude" bson:"longitude" validate:"required"`
-	MeetResult      string             `json:"meet_result" bson:"meet_result"`
-	CreatedAt       time.Time          `json:"created_at" bson:"created_at"`
+    ID             primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+    UserID         primitive.ObjectID `bson:"user_id" json:"user_id"`
+    PhoneNum       string             `bson:"phone_num" json:"phone_num"`
+    ClientName     string             `bson:"client_name" json:"client_name"`
+    Address        string             `bson:"address" json:"address"`
+    ProspectStatus string             `bson:"prospect_status" json:"prospect_status"`
+    Latitude       float64            `bson:"latitude" json:"latitude"`
+    Longitude      float64            `bson:"longitude" json:"longitude"`
+    MeetResult     string             `bson:"meet_result" json:"meet_result"`
+    CreatedAt      time.Time          `bson:"created_at" json:"created_at"`
+    Note           string             `bson:"note" json:"note"`
 }
 
 func (m *Meet) Validate() error {
-	m.ClientName = strings.TrimSpace(m.ClientName)
-	if m.ClientName == "" {
-		return errors.New("client name is required")
-	}
+    m.ClientName = strings.TrimSpace(m.ClientName)
+    if m.ClientName == "" {
+        return errors.New("client name is required and cannot be empty")
+    }
+    if len(m.ClientName) < 2 || len(m.ClientName) > 100 {
+        return errors.New("client name must be between 2 and 100 characters")
+    }
 
-	m.Address = strings.TrimSpace(m.Address)
-	if m.Address == "" {
-		return errors.New("address is required")
-	}
+    m.Address = strings.TrimSpace(m.Address)
+    if m.Address == "" {
+        return errors.New("address is required and cannot be empty")
+    }
 
-	if m.Latitude < -90 || m.Latitude > 90 {
-		return errors.New("invalid latitude. Must be between -90 and 90")
-	}
+    m.PhoneNum = strings.TrimSpace(m.PhoneNum)
+    if m.PhoneNum == "" {
+        return errors.New("phone number is required")
+    }
 
-	if m.Longitude < -180 || m.Longitude > 180 {
-		return errors.New("invalid longitude. Must be between -180 and 180")
-	}
+    if m.Latitude < -90 || m.Latitude > 90 {
+        return errors.New("invalid latitude, must be between -90 and 90")
+    }
+    if m.Longitude < -180 || m.Longitude > 180 {
+        return errors.New("invalid longitude, must be between -180 and 180")
+    }
 
-	validStatuses := map[string]bool{
-		"potential": true,
-		"active":    true,
-		"inactive":  true,
-		"":          true, 
-	}
+    validStatuses := map[string]bool{
+        "potential": true,
+        "active":    true,
+        "inactive":  true,
+    }
+    if m.ProspectStatus != "" && !validStatuses[m.ProspectStatus] {
+        return errors.New("invalid prospect status, must be one of: potential, active, inactive")
+    }
 
-	if !validStatuses[m.ProspectStatus] {
-		return errors.New("invalid prospect status. Must be one of: potential, active, inactive")
-	}
-
-	return nil
+    return nil
 }
 
 func (m *Meet) BeforeCreate() {
-	m.ID = primitive.NewObjectID()
-	m.CreatedAt = time.Now()
-		if m.ProspectStatus == "" {
-		m.ProspectStatus = "potential"
-	}
-}
-
-func (m *Meet) TableName() string {
-    return "meet"
+    m.CreatedAt = time.Now()
+    if m.ProspectStatus == "" {
+        m.ProspectStatus = "potential"
+    }
+    if m.Note == "" {
+        m.Note = "No additional notes provided."
+    }
 }
