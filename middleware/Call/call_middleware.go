@@ -1,10 +1,14 @@
 package CallMiddleware
 
 import (
+	"fmt"
 	"net/http"
-	"time" 
+	"strings"
+	"time"
 
-	"github.com/gin-gonic/gin"                          
+	"github.com/Arkariza/API_MyActivity/models/CallAndMeet"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 )
 
 type Call struct {
@@ -16,51 +20,84 @@ type Call struct {
 	Note           string    `json:"note,omitempty"`
 }
 
-func ValidateAddCall() gin.HandlerFunc {
+type CallMiddleware struct {
+	secretKey string
+}
+
+func NewCallMiddleware(secretKey string) *CallMiddleware {
+	return &CallMiddleware{
+		secretKey: secretKey,
+	}
+}
+
+func (m *CallMiddleware) AuthenticateCall() gin.HandlerFunc {
 	return func(c *gin.Context) {
- 
-		var input Call
-		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input data", "details": err.Error()})
-			c.Abort() 
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Authorization token is required",
+			})
+			c.Abort()
 			return
 		}
-		c.Set("validate_call", input) 
 
-		c.Next() 
-	}
-}
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, fmt.Errorf("unexpected signing method")
+			}
+			return []byte(m.secretKey), nil
+		})
 
-func setCallTimestampMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		currentTime := time.Now()
-		c.Set("call_timestamp", currentTime)
-		c.Next()
-	}
-}
-
-func SetCallTypeMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ClientName := c.GetInt("client_name")
-		var callType string
-
-		switch ClientName {
-		case 1:
-			callType = "Personal"
-		case 2:
-			callType = "Business"
-		case 3:
-			callType = "Unknown"
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token: " + err.Error(),
+			})
+			c.Abort()
+			return
 		}
-		c.Set("call_type", callType)
+
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok || !token.Valid {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid token claims",
+			})
+			c.Abort()
+			return
+		}
+
+		userID, ok := claims["user_id"].(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Invalid user ID in token",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Set("user_id", userID)
 		c.Next()
 	}
 }
 
-func ExampleMiddlewareLogger() gin.HandlerFunc {
+func ValidateCallRequest() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		c.Writer.Header().Set("X-Processed-Time", time.Now().Format(time.RFC3339))
+		var call models.Call
+		if err := c.ShouldBindJSON(&call); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			c.Abort()
+			return
+		}
+		if err := call.Validate(); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			c.Abort()
+			return
+		}
+		c.Set("call_data", call)
 		c.Next()
 	}
-} 
-
+}

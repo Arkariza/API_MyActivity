@@ -6,11 +6,13 @@ import (
 	"time"
 
 	"github.com/Arkariza/API_MyActivity/auth"
+	"github.com/Arkariza/API_MyActivity/controller/Call"
 	"github.com/Arkariza/API_MyActivity/controller/Lead"
 	"github.com/Arkariza/API_MyActivity/controller/Meet"
 	"github.com/Arkariza/API_MyActivity/controller/User"
-	"github.com/Arkariza/API_MyActivity/middleware/Meet"
+	"github.com/Arkariza/API_MyActivity/middleware/Call"
 	"github.com/Arkariza/API_MyActivity/middleware/Lead"
+	"github.com/Arkariza/API_MyActivity/middleware/Meet"
 	"github.com/Arkariza/API_MyActivity/models"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -34,9 +36,11 @@ func main() {
 	userController := UserControllers.NewUserController(authCommand)
 	leadController := LeadController.NewLeadController(models.GetCollection("leads"))
 	meetController := MeetControllers.NewMeetController(models.GetCollection("meet"))
+	callController := CallControllers.NewCallController(models.GetCollection("call"))
 
 	leadMiddleware := LeadMiddleware.NewLeadMiddleware(authCommand.GetSecretKey())
 	meetMiddleware := MeetMiddleware.NewMeetMiddleware(authCommand.GetSecretKey())
+	callMiddleware := CallMiddleware.NewCallMiddleware(authCommand.GetSecretKey())
 
 	api := r.Group("/api")
 	{
@@ -73,6 +77,35 @@ func main() {
 			meets.GET("/", meetController.ViewMeets)
 			meets.GET("/:id", meetController.GetMeetByID)
 			meets.DELETE("/:id", meetController.DeleteMeet)
+		}
+		calls := api.Group("calls")
+		calls.Use(callMiddleware.AuthenticateCall())
+		{
+			calls.POST("/add", callMiddleware.AuthenticateCall(), func(c *gin.Context) {
+				var req CallControllers.AddCallRequest
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{
+						"error": "Invalid request",
+						"details": err.Error(),
+					})
+					return
+				}
+				calls, err := callController.AddCall(c, req)
+				if err != nil {
+					log.Printf("Error adding call: %v", err)
+					
+					c.JSON(http.StatusInternalServerError, gin.H{
+						"error": "Failed to create call",
+						"details": err.Error(),
+					})
+					return
+				}
+				
+				c.JSON(http.StatusCreated, gin.H{
+					"message": "Call Has Been Created",
+					"data": calls,
+				})
+			})
 		}
 	}
 

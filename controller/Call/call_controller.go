@@ -2,11 +2,15 @@ package CallControllers
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/Arkariza/API_MyActivity/models/CallAndMeet"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -20,60 +24,88 @@ type CallController struct {
 
 func NewCallController(collection *mongo.Collection) *CallController {
 	return &CallController{
-		collection: collection,  
+		collection: collection,
 	}
 }
 
 type AddCallRequest struct {
-	ClientName string `json:"client_name" binding:"required"`
-	NumPhone   string `json:"numphone" binding:"required"`
-	Note       string `json:"note"`
+    ClientName      string `json:"client_name" binding:"required"`
+    PhoneNum        string `json:"phonenum" binding:"required"`
+    Note            string `json:"note,omitempty"`
+    ProspectStatus  string `json:"prospect_status,omitempty"`
+    CallResult      string `json:"call_result,omitempty"`
 }
 
 type UpdateCallRequest struct {
-	ClientName string `json:"client_name"`
-	NumPhone   string `json:"numphone"`
-	Note       string `json:"note"`
+	ClientName     string `json:"client_name"`
+	PhoneNum       string `json:"Phone_num"`
+	Note           string `json:"note"`
+	ProspectStatus string `json:"prospect_status"`
+	CallResult     string `json:"call_result"`
 }
 
-func (cc *CallController) AddCall(c *gin.Context) {
-	var input AddCallRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Invalid input",
-			"error":   err.Error(),
-		})
-		return
-	}
+func validateToken(c *gin.Context) (string, error) {
+    authHeader := c.GetHeader("Authorization")
+    if !strings.HasPrefix(authHeader, "Bearer ") {
+        return "", errors.New("invalid token format")
+    }
 
-	call := bson.M{
-		"_id":         primitive.NewObjectID(),
-		"client_name": input.ClientName,
-		"numphone":    input.NumPhone,
-		"note":        input.Note,
-		"date":        time.Now(),
-		"deleted_at":  nil,
-	}
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == "" {
+        return "", errors.New("empty token")
+    }
 
-	_, err := cc.collection.InsertOne(context.Background(), call)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Failed to add call",
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Call added successfully",
-		"data":    call,
-	})
+	return tokenString, nil
 }
 
+func (cc *CallController) AddCall(c *gin.Context, req AddCallRequest) (*models.Call, error) {
+    _, err := validateToken(c)
+    if err != nil {
+        handleError(c, http.StatusUnauthorized, "Invalid authentication", err)
+        return nil, err
+    }
 
-// GetCalls - Ambil daftar panggilan dengan pagination
+    call := models.Call{
+        ID:              primitive.NewObjectID(),
+        ClientName:      req.ClientName,
+        PhoneNum:        req.PhoneNum,
+        Note:            req.Note,
+        CreatedAt:       time.Now(),
+        Date:            time.Now(),
+        ProspectStatus:  req.ProspectStatus,
+        CallResult:      req.CallResult,
+    }
+
+    if call.ProspectStatus == "" {
+        call.ProspectStatus = "new"
+    }
+    if call.CallResult == "" {
+        call.CallResult = "Pending"
+    }
+    if call.Note == "" {
+        call.Note = "No additional notes provided."
+    }
+
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    _, err = cc.collection.InsertOne(ctx, call)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create call: %v", err)
+    }
+
+    c.JSON(http.StatusCreated, gin.H{
+        "message": "Call created successfully",
+        "data":    call,
+    })
+
+    return &call, nil
+}
+
+func handleError(c *gin.Context, i int, s string, err error) {
+	panic("unimplemented")
+}
+
 func (cc *CallController) GetCalls(c *gin.Context) {
 	limit := 10
 	page := 1
@@ -82,6 +114,7 @@ func (cc *CallController) GetCalls(c *gin.Context) {
 			limit = parsedLimit
 		}
 	}
+
 	if pageStr := c.Query("page"); pageStr != "" {
 		if parsedPage, err := strconv.Atoi(pageStr); err == nil && parsedPage > 0 {
 			page = parsedPage
@@ -89,13 +122,29 @@ func (cc *CallController) GetCalls(c *gin.Context) {
 	}
 
 	if limit > 100 {
-		limit = 100 // Batasi maksimum 100 per halaman
+		limit = 100
 	}
 
 	skip := (page - 1) * limit
+
 	filter := bson.M{"deleted_at": bson.M{"$exists": false}}
 
-	findOptions := options.Find().SetSkip(int64(skip)).SetLimit(int64(limit)).SetSort(bson.D{{Key: "date", Value: -1}})
+	if searchQuery := c.Query("search"); searchQuery != "" {
+		filter["$or"] = []bson.M{
+			{"client_name": bson.M{"$regex": primitive.Regex{Pattern: searchQuery, Options: "i"}}},
+			{"phonenum": bson.M{"$regex": primitive.Regex{Pattern: searchQuery, Options: "i"}}},
+		}
+	}
+
+	if status := c.Query("status"); status != "" {
+		filter["prospect_status"] = status
+	}
+
+	findOptions := options.Find().
+		SetSkip(int64(skip)).
+		SetLimit(int64(limit)).
+		SetSort(bson.D{{Key: "date", Value: -1}})
+
 	cursor, err := cc.collection.Find(context.Background(), filter, findOptions)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch calls"})
@@ -130,13 +179,13 @@ func (cc *CallController) GetCalls(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// GetCallByID - Ambil data panggilan berdasarkan ID
 func (cc *CallController) GetCallByID(c *gin.Context) {
 	id, err := primitive.ObjectIDFromHex(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
 		return
 	}
+
 	filter := bson.M{"_id": id, "deleted_at": bson.M{"$exists": false}}
 	var call bson.M
 	err = cc.collection.FindOne(context.Background(), filter).Decode(&call)
@@ -152,7 +201,6 @@ func (cc *CallController) GetCallByID(c *gin.Context) {
 	c.JSON(http.StatusOK, call)
 }
 
-// UpdateCall - Perbarui data panggilan
 func (cc *CallController) UpdateCall(c *gin.Context) {
 	id, err := primitive.ObjectIDFromHex(c.Param("id"))
 	if err != nil {
@@ -160,41 +208,98 @@ func (cc *CallController) UpdateCall(c *gin.Context) {
 		return
 	}
 
-	var input UpdateCallRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input", "details": err.Error()})
+	var req UpdateCallRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid input",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	if req.ClientName != "" {
+		req.ClientName = strings.TrimSpace(req.ClientName)
+		if len(req.ClientName) < 2 || len(req.ClientName) > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "Client name must be between 2 and 100 characters",
+			})
+			return
+		}
+	}
+
+	validStatuses := map[string]bool{
+		"new":          true,
+		"in_progress":  true,
+		"contacted":    true,
+		"qualified":    true,
+		"unqualified":  true,
+		"follow_up":    true,
+	}
+	if req.ProspectStatus != "" && !validStatuses[req.ProspectStatus] {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid prospect status",
+		})
 		return
 	}
 
 	update := bson.M{"$set": bson.M{
-		"client_name": input.ClientName,
-		"numphone":    input.NumPhone,
-		"note":        input.Note,
+		"client_name":     req.ClientName,
+		"phone_num":       req.PhoneNum,
+		"note":            req.Note,
+		"prospect_status": req.ProspectStatus,
+		"call_result":     req.CallResult,
 	}}
-	_, err = cc.collection.UpdateOne(context.Background(), bson.M{"_id": id, "deleted_at": bson.M{"$exists": false}}, update)
+
+	for k, v := range update["$set"].(bson.M) {
+		if v == "" {
+			delete(update["$set"].(bson.M), k)
+		}
+	}
+
+	result, err := cc.collection.UpdateOne(
+		context.Background(), 
+		bson.M{"_id": id, "deleted_at": bson.M{"$exists": false}}, 
+		update,
+	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update call", "details": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Failed to update call",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	if result.ModifiedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Call not found or no changes made"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Call updated successfully"})
 }
 
-// DeleteCall - Hapus data panggilan (soft delete)
 func (cc *CallController) DeleteCall(c *gin.Context) {
-	id, err := primitive.ObjectIDFromHex(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
-		return
-	}
+    id, err := primitive.ObjectIDFromHex(c.Param("id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+        return
+    }
 
-	deletedAt := time.Now()
-	update := bson.M{"$set": bson.M{"deleted_at": deletedAt}}
-	_, err = cc.collection.UpdateOne(context.Background(), bson.M{"_id": id, "deleted_at": bson.M{"$exists": false}}, update)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete call", "details": err.Error()})
-		return
-	}
+    result, err := cc.collection.DeleteOne(
+        context.Background(), 
+        bson.M{"_id": id},
+    )
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "error":   "Failed to delete call",
+            "details": err.Error(),
+        })
+        return
+    }
 
-	c.JSON(http.StatusOK, gin.H{"message": "Call deleted successfully"})
+    if result.DeletedCount == 0 {
+        c.JSON(http.StatusNotFound, gin.H{"error": "Call not found"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Call deleted successfully"})
 }
