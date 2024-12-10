@@ -21,9 +21,8 @@ func main() {
 	defer models.DisconnectDatabase()
 
 	r := gin.Default()
-
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:57038"},
+		AllowOrigins:     []string{"http://localhost:65516"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -31,53 +30,46 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
-
 	authCommand := auth.NewAuthCommand(models.GetCollection("users"))
 	userController := UserControllers.NewUserController(authCommand)
-	leadController := LeadControllers.NewLeadController(models.GetCollection("leads"))
+	leadController := LeadController.NewLeadController(models.GetCollection("leads"))
 	meetController := MeetControllers.NewMeetController(models.GetCollection("meet"))
 
-	authMiddleware := LeadMiddleware.NewAuthMiddleware(authCommand.GetSecretKey())
-	leadMiddleware := LeadMiddleware.SetLeadStatus()
+	leadMiddleware := LeadMiddleware.NewLeadMiddleware(authCommand.GetSecretKey())
 	meetMiddleware := MeetMiddleware.NewMeetMiddleware(authCommand.GetSecretKey())
-
 
 	api := r.Group("/api")
 	{
-
 		api.POST("/register", userController.Register)
 		api.POST("/login", userController.Login)
 
 		leads := api.Group("/leads")
-		leads.Use(authMiddleware.AuthenticateUser())
-		leads.Use(leadMiddleware)
+		leads.Use(leadMiddleware.AuthenticateLead())
 		{
-			leads.POST("/add", LeadMiddleware.ValidateLeadInput(), leadController.AddLead)
-			leads.GET("/", leadController.GetLeads)
-			leads.GET("/:id", leadController.GetLeadByID)
-			leads.POST("/referral", LeadMiddleware.ValidateLeadInput(), leadController.AddReferral)
+			leads.POST("/auto-status", leadController.CreateLeadWithAutoStatus)
 		}
 
 		meets := api.Group("/meets")
 		meets.Use(meetMiddleware.AuthenticateMeet())
-		{meets.POST("/add", MeetMiddleware.ValidateMeetRequest(), func(c *gin.Context) {
-			var req MeetControllers.AddMeetRequest
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-		
-			meet, err := meetController.AddMeet(c, req)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-		
-			c.JSON(http.StatusCreated, gin.H{
-				"message": "Meet created successfully",
-				"data":    meet,
+		{
+			meets.POST("/add", meetMiddleware.AuthenticateMeet(), func(c *gin.Context) {
+				var req MeetControllers.AddMeetRequest
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				meet, err := meetController.AddMeet(c, req)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				c.JSON(http.StatusCreated, gin.H{
+					"message": "Meet created successfully",
+					"data":    meet,
+				})
 			})
-		})
 			meets.GET("/", meetController.ViewMeets)
 			meets.GET("/:id", meetController.GetMeetByID)
 			meets.DELETE("/:id", meetController.DeleteMeet)

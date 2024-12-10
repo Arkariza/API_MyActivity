@@ -10,7 +10,6 @@ import (
 
 type Meet struct {
     ID             primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
-    UserID         primitive.ObjectID `bson:"user_id" json:"user_id"`
     PhoneNum       string             `bson:"phone_num" json:"phone_num"`
     ClientName     string             `bson:"client_name" json:"client_name"`
     Address        string             `bson:"address" json:"address"`
@@ -68,4 +67,8 @@ func (m *Meet) BeforeCreate() {
     if m.Note == "" {
         m.Note = "No additional notes provided."
     }
+}
+
+func (u *Meet) TableName() string {
+    return "meet"
 }

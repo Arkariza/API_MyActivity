@@ -7,12 +7,12 @@ import (
 )
 
 const (
-    RoleBFA   int = 1
-    RoleStaff int = 2
+    RoleBFA   int = 2
+    RoleStaff int = 1
 )
 
 type User struct {
-    ID        primitive.ObjectID `bson:"_id,omitempty"`         
+    ID        primitive.ObjectID `bson:"_id,omitempty"`
     Username  string             `bson:"username" json:"username"`
     Email     string             `bson:"email" json:"email"`
     PhoneNum  string             `bson:"phone_num" json:"phone_num"`

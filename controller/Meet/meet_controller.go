@@ -2,7 +2,6 @@ package MeetControllers
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -57,38 +56,27 @@ func handleError(c *gin.Context, statusCode int, message string, details error) 
 }
 
 func validateToken(c *gin.Context) (string, error) {
-	authHeader := c.GetHeader("Authorization")
-	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return "", errors.New("invalid token format")
-	}
+    authHeader := c.GetHeader("Authorization")
+    if !strings.HasPrefix(authHeader, "Bearer ") {
+        return "", errors.New("invalid token format")
+    }
 
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-	_, err := base64.StdEncoding.DecodeString(tokenString)
-	if err != nil {
-		return "", fmt.Errorf("invalid token: %v", err)
-	}
+	if tokenString == "" {
+        return "", errors.New("empty token")
+    }
 
 	return tokenString, nil
 }
 
 func (mc *MeetController) AddMeet(c *gin.Context, req AddMeetRequest) (*models.Meet, error) {
-	token, err := validateToken(c)
-	if err != nil {
-		handleError(c, http.StatusUnauthorized, "Invalid token", err)
-		return nil, err
-	}
-
-	fmt.Println("Validated Token:", token) // Debugging
-
-	user, exists := c.Get("user")
-	if !exists {
-		return nil, errors.New("user not found")
-	}
-
-	currentUser := user.(*models.User)
+	_, err := validateToken(c)
+    if err != nil {
+        handleError(c, http.StatusUnauthorized, "Invalid authentication", err)
+        return nil, err
+    }
 
 	meet := models.Meet{
-		UserID:         currentUser.ID,
 		ClientName:     req.ClientName,
 		PhoneNum:       req.PhoneNum,
 		Latitude:       req.Latitude,
@@ -104,29 +92,29 @@ func (mc *MeetController) AddMeet(c *gin.Context, req AddMeetRequest) (*models.M
 
 	result, err := mc.collection.InsertOne(ctx, meet)
 	if err != nil {
+		handleError(c, http.StatusInternalServerError, "Failed to create meet", err)
 		return nil, fmt.Errorf("failed to create meet: %v", err)
 	}
 
 	meet.ID = result.InsertedID.(primitive.ObjectID)
 
+	c.JSON(http.StatusCreated, gin.H{
+		"message": "Meet created successfully",
+		"data":    meet,
+	})
+
 	return &meet, nil
 }
 
-// ViewMeets function
+
 func (mc *MeetController) ViewMeets(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
-		return
-	}
-
 	status := c.Query("status")
 	clientName := c.Query("client_name")
 
-	filter := bson.M{"user_id": userID}
+	filter := bson.M{}
 	if status != "" {
 		filter["prospect_status"] = status
 	}
@@ -172,19 +160,10 @@ func (mc *MeetController) ViewMeets(c *gin.Context) {
 }
 
 func (mc *MeetController) UpdateMeet(c *gin.Context) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
 	meetID := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(meetID)
 	if err != nil {
 		handleError(c, http.StatusBadRequest, "Invalid meet ID", err)
-		return
-	}
-
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
 		return
 	}
 
@@ -194,7 +173,10 @@ func (mc *MeetController) UpdateMeet(c *gin.Context) {
 		return
 	}
 
-	filter := bson.M{"_id": objectID, "user_id": userID}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"_id": objectID}
 	update := bson.M{"$set": updatedMeet}
 
 	result, err := mc.collection.UpdateOne(ctx, filter, update)
@@ -204,7 +186,7 @@ func (mc *MeetController) UpdateMeet(c *gin.Context) {
 	}
 
 	if result.ModifiedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Meet not found or no permission to update"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Meet not found"})
 		return
 	}
 
@@ -222,13 +204,7 @@ func (mc *MeetController) DeleteMeet(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
-		return
-	}
-
-	filter := bson.M{"_id": objectID, "user_id": userID}
+	filter := bson.M{"_id": objectID}
 
 	result, err := mc.collection.DeleteOne(ctx, filter)
 	if err != nil {
@@ -237,7 +213,7 @@ func (mc *MeetController) DeleteMeet(c *gin.Context) {
 	}
 
 	if result.DeletedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Meet not found or no permission to delete"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Meet not found"})
 		return
 	}
 
@@ -255,19 +231,13 @@ func (mc *MeetController) GetMeetByID(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
-		return
-	}
-
 	var meet models.Meet
-	filter := bson.M{"_id": objectID, "user_id": userID}
+	filter := bson.M{"_id": objectID}
 
 	err = mc.collection.FindOne(ctx, filter).Decode(&meet)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Meet not found or no permission to view"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Meet not found"})
 			return
 		}
 		handleError(c, http.StatusInternalServerError, "Failed to retrieve meet", err)
