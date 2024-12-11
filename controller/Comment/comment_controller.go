@@ -1,8 +1,11 @@
-package CommandController
+package CommentController
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Arkariza/API_MyActivity/models/CallAndMeet"
@@ -10,114 +13,227 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-type CommandController struct {
+type CommentController struct {
 	Collection *mongo.Collection
 }
 
-func NewCommandController(collection *mongo.Collection) *CommandController {
-	return &CommandController{Collection: collection}
+func NewCommentController(collection *mongo.Collection) *CommentController {
+	return &CommentController{Collection: collection}
 }
 
-func (cc *CommandController) CreateCommand(c *gin.Context) {
-	var command models.Command
-	if err := c.ShouldBindJSON(&command); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
+func validateToken(c *gin.Context) (string, error) {
+    authHeader := c.GetHeader("Authorization")
+    if !strings.HasPrefix(authHeader, "Bearer ") {
+        return "", errors.New("invalid token format")
+    }
 
-	command.ID = primitive.NewObjectID()
-	if err := command.BeforeCreate(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to set default values"})
-		return
-	}
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == "" {
+        return "", errors.New("empty token")
+    }
 
-	_, err := cc.Collection.InsertOne(context.Background(), command)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to insert command"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, command)
+	return tokenString, nil
 }
 
-func (cc *CommandController) GetAllCommands(c *gin.Context) {
-	cursor, err := cc.Collection.Find(context.Background(), bson.M{})
+func (cc *CommentController) CreateComment(c *gin.Context) {
+    _, err := validateToken(c)
+    if err != nil {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: " + err.Error()})
+        return
+    }
+
+    var comment models.Comment
+    if err := c.ShouldBindJSON(&comment); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
+    comment.ID = primitive.NewObjectID()
+
+    if err := comment.Validate(); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    if comment.Date.IsZero() {
+        comment.Date = time.Now()
+    }
+    result, err := cc.Collection.InsertOne(context.Background(), comment)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{
+            "error":   "failed to insert comment",
+            "details": err.Error(),
+        })
+        return
+    }
+    c.JSON(http.StatusCreated, gin.H{
+        "message": "Comment created successfully",
+        "comment": comment,
+        "insertedID": result.InsertedID,
+    })
+}
+
+
+func (cc *CommentController) GetAllComments(c *gin.Context) {
+	page := c.DefaultQuery("page", "1")
+	limit := c.DefaultQuery("limit", "10")
+
+	pageNum, err := strconv.Atoi(page)
+	if err != nil || pageNum < 1 {
+		pageNum = 1
+	}
+
+	limitNum, err := strconv.Atoi(limit)
+	if err != nil || limitNum < 1 || limitNum > 100 {
+		limitNum = 10
+	}
+
+	skip := (pageNum - 1) * limitNum
+
+	totalCount, err := cc.Collection.CountDocuments(context.Background(), bson.M{})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch commands"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count comments"})
+		return
+	}
+
+	cursor, err := cc.Collection.Find(context.Background(), bson.M{}, 
+		options.Find().SetSkip(int64(skip)).SetLimit(int64(limitNum)))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch comments"})
 		return
 	}
 	defer cursor.Close(context.Background())
 
-	var commands []models.Command
-	if err := cursor.All(context.Background(), &commands); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode commands"})
+	var comments []models.Comment
+	if err := cursor.All(context.Background(), &comments); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode comments"})
 		return
 	}
 
-	c.JSON(http.StatusOK, commands)
+	c.JSON(http.StatusOK, gin.H{
+		"comments": comments,
+		"page":     pageNum,
+		"limit":    limitNum,
+		"total":    totalCount,
+	})
 }
 
-func (cc *CommandController) GetCommandByID(c *gin.Context) {
+func (cc *CommentController) GetCommentByID(c *gin.Context) {
 	id := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid command ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid comment ID"})
 		return
 	}
 
-	var command models.Command
-	err = cc.Collection.FindOne(context.Background(), bson.M{"_id": objectID}).Decode(&command)
+	var comment models.Comment
+	err = cc.Collection.FindOne(context.Background(), bson.M{"_id": objectID}).Decode(&comment)
 	if err == mongo.ErrNoDocuments {
-		c.JSON(http.StatusNotFound, gin.H{"error": "command not found"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "comment not found"})
 		return
 	} else if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch command"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch comment"})
 		return
 	}
 
-	c.JSON(http.StatusOK, command)
+	c.JSON(http.StatusOK, comment)
 }
 
-func (cc *CommandController) UpdateCommand(c *gin.Context) {
+func (cc *CommentController) UpdateComment(c *gin.Context) {
+
+	_, err := validateToken(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: " + err.Error()})
+		return
+	}
+
+	userRole, exists := c.Get("userRole")
+	if !exists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "user role not found"})
+		return
+	}
+
 	id := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid command ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid comment ID"})
 		return
 	}
 
-	var updatedCommand models.Command
-	if err := c.ShouldBindJSON(&updatedCommand); err != nil {
+	var updatedComment models.Comment
+	if err := c.ShouldBindJSON(&updatedComment); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	updatedCommand.Date = time.Now()
-	update := bson.M{"$set": updatedCommand}
-	_, err = cc.Collection.UpdateOne(context.Background(), bson.M{"_id": objectID}, update)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update command"})
+	if userRole.(int) != 1 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only users with Role 1 can update comments"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "command updated successfully"})
+	if err := updatedComment.Validate(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	updatedComment.Date = time.Now()
+
+	update := bson.M{"$set": updatedComment}
+	result, err := cc.Collection.UpdateOne(context.Background(), bson.M{"_id": objectID}, update)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update comment"})
+		return
+	}
+
+	if result.ModifiedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "comment not found or no changes made"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Comment updated successfully",
+		"id":      objectID.Hex(),
+	})
 }
 
-func (cc *CommandController) DeleteCommand(c *gin.Context) {
+func (cc *CommentController) DeleteComment(c *gin.Context) {
+	_, err := validateToken(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized: " + err.Error()})
+		return
+	}
+	userRole, exists := c.Get("userRole")
+	if !exists {
+		c.JSON(http.StatusForbidden, gin.H{"error": "user role not found"})
+		return
+	}
+	if userRole.(int) != 1 {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only users with Role 1 can delete comments"})
+		return
+	}
+
 	id := c.Param("id")
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid command ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid comment ID"})
 		return
 	}
 
-	_, err = cc.Collection.DeleteOne(context.Background(), bson.M{"_id": objectID})
+	result, err := cc.Collection.DeleteOne(context.Background(), bson.M{"_id": objectID})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete command"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete comment"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "command deleted successfully"})
+	if result.DeletedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "comment not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Comment deleted successfully",
+		"id":      objectID.Hex(),
+	})
 }

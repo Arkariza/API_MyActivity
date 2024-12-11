@@ -1,25 +1,26 @@
-package CommadnMiddleware
+package CommentMiddleware
 
 import (
 	"fmt"
-    "net/http"
-    "strings"
-     
-    "github.com/gin-gonic/gin"
-    "github.com/golang-jwt/jwt"
+	"net/http"
+	"strings"
+
+	"github.com/Arkariza/API_MyActivity/models/CallAndMeet"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt"
 )
 
-type CommandMiddleware struct {
+type CommentMiddleware struct {
 	secretKey string
 }
 
-func NewCommandMiddleware(secretKey string) *CommandMiddleware {
-	return &CommandMiddleware{
+func NewCommentMiddleware(secretKey string) *CommentMiddleware {
+	return &CommentMiddleware{
 		secretKey: secretKey,
 	}
 }
 
-func (m *CommandMiddleware) AuthenticateCommand() gin.HandlerFunc {
+func (m *CommentMiddleware) AuthenticateComment() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -86,6 +87,28 @@ func (m *CommandMiddleware) AuthenticateCommand() gin.HandlerFunc {
 
  		fmt.Printf("Authenticated User ID: %s, Role: %d\n", userID, int(role))
 
+		c.Next()
+	}
+}
+
+func ValidateCommentRequest() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var comment models.Comment
+		if err := c.ShouldBindJSON(&comment); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			c.Abort()
+			return
+		}
+		if err := comment.Validate(); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			c.Abort()
+			return
+		}
+		c.Set("Comment_data", comment)
 		c.Next()
 	}
 }

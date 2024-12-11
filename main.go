@@ -7,10 +7,12 @@ import (
 
 	"github.com/Arkariza/API_MyActivity/auth"
 	"github.com/Arkariza/API_MyActivity/controller/Call"
+	"github.com/Arkariza/API_MyActivity/controller/Comment"
 	"github.com/Arkariza/API_MyActivity/controller/Lead"
 	"github.com/Arkariza/API_MyActivity/controller/Meet"
 	"github.com/Arkariza/API_MyActivity/controller/User"
 	"github.com/Arkariza/API_MyActivity/middleware/Call"
+	"github.com/Arkariza/API_MyActivity/middleware/Comment"
 	"github.com/Arkariza/API_MyActivity/middleware/Lead"
 	"github.com/Arkariza/API_MyActivity/middleware/Meet"
 	"github.com/Arkariza/API_MyActivity/models"
@@ -37,10 +39,12 @@ func main() {
 	leadController := LeadController.NewLeadController(models.GetCollection("leads"))
 	meetController := MeetControllers.NewMeetController(models.GetCollection("meet"))
 	callController := CallControllers.NewCallController(models.GetCollection("call"))
+	commentController := CommentController.NewCommentController(models.GetCollection("comments"))
 
 	leadMiddleware := LeadMiddleware.NewLeadMiddleware(authCommand.GetSecretKey())
 	meetMiddleware := MeetMiddleware.NewMeetMiddleware(authCommand.GetSecretKey())
 	callMiddleware := CallMiddleware.NewCallMiddleware(authCommand.GetSecretKey())
+	commentMiddleware := CommentMiddleware.NewCommentMiddleware(authCommand.GetSecretKey())
 
 	api := r.Group("/api")
 	{
@@ -78,6 +82,7 @@ func main() {
 			meets.GET("/:id", meetController.GetMeetByID)
 			meets.DELETE("/:id", meetController.DeleteMeet)
 		}
+
 		calls := api.Group("calls")
 		calls.Use(callMiddleware.AuthenticateCall())
 		{
@@ -106,6 +111,15 @@ func main() {
 					"data": calls,
 				})
 			})
+		}
+		comments := api.Group("/comments")
+		comments.Use(commentMiddleware.AuthenticateComment())
+		{
+			comments.POST("/add", commentController.CreateComment)
+			comments.GET("/", commentController.GetAllComments)
+			comments.GET("/:id", commentController.GetCommentByID)
+			comments.PUT("/:id", commentController.UpdateComment)
+			comments.DELETE("/:id", commentController.DeleteComment)
 		}
 	}
 
