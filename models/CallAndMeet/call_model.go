@@ -11,7 +11,7 @@ import (
 type Call struct {
     ID             primitive.ObjectID `bson:"_id,omitempty" json:"id"`
     ClientName     string             `bson:"client_name" json:"client_name"`
-    PhoneNum       string             `bson:"phone_num" json:"phone_num"`
+    PhoneNum       string             `bson:"phonenum" json:"phone_num"`
     ProspectStatus string             `bson:"prospect_status" json:"prospect_status"`
     Date           time.Time          `bson:"date" json:"date"`
     Note           string             `bson:"note" json:"note"`

@@ -38,7 +38,7 @@ type AddCallRequest struct {
 
 type UpdateCallRequest struct {
 	ClientName     string `json:"client_name"`
-	PhoneNum       string `json:"Phone_num"`
+	PhoneNum       string `json:"phone_num"`
 	Note           string `json:"note"`
 	ProspectStatus string `json:"prospect_status"`
 	CallResult     string `json:"call_result"`

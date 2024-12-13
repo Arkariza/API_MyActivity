@@ -14,7 +14,7 @@ import (
 type Call struct {
 	ID             string    `json:"id,omitempty"`         
 	ClientName     string    `json:"client_name" binding:"required"`
-	Numphone       int       `json:"numphone" binding:"required"`
+	PhoneNum       string    `json:"phonenum" binding:"required"`
 	ProspectStatus string    `json:"prospect_status,omitempty"`
 	Date           time.Time `json:"date" binding:"required"`
 	Note           string    `json:"note,omitempty"`

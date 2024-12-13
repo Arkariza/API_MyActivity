@@ -6,20 +6,20 @@ import (
 )
 
 type Lead struct {
-    ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-    NumPhone    int64             `bson:"num_phone" json:"numPhone" binding:"required"`
-    Priority    string            `bson:"priority" json:"priority" binding:"required"`
-    Latitude    float64           `bson:"latitude" json:"latitude" binding:"required"`
-    Longitude   float64           `bson:"longitude" json:"longitude" binding:"required"`
-    CreateAt    time.Time         `bson:"created_at" json:"createdAt"`
-    DateSubmit  time.Time         `bson:"date_submit,omitempty" json:"dateSubmit"`
-    ClientName  string            `bson:"client_name" json:"clientName" binding:"required"`
-    IdBFA       uint              `bson:"bfa_id,omitempty" json:"bfaId"`
-    IdRefeal    uint              `bson:"referral_id,omitempty" json:"referralId"`
-    TypeLead    string            `bson:"type_lead" json:"typeLead" binding:"required"`
-    NoPolicy    int32             `bson:"no_policy,omitempty" json:"noPolicy"`
-    Information string            `bson:"information" json:"information"`
-    Status      string            `bson:"status" json:"status"`
+    ID          primitive.ObjectID  `bson:"_id,omitempty" json:"id"`
+    NumPhone    int64               `bson:"num_phone" json:"numPhone" binding:"required"`
+    Priority    string              `bson:"priority" json:"priority" binding:"required"`
+    Latitude    float64             `bson:"latitude" json:"latitude" binding:"required"`
+    Longitude   float64             `bson:"longitude" json:"longitude" binding:"required"`
+    CreateAt    time.Time           `bson:"created_at" json:"createdAt"`
+    DateSubmit  time.Time           `bson:"date_submit,omitempty" json:"dateSubmit"`
+    ClientName  string              `bson:"client_name" json:"clientName" binding:"required"`
+    IdBFA       uint                `bson:"bfa_id,omitempty" json:"bfaId"`
+    IdRefeal    uint                `bson:"referral_id,omitempty" json:"referralId"`
+    TypeLead    string              `bson:"type_lead" json:"typeLead" binding:"required"`
+    NoPolicy    int32               `bson:"no_policy,omitempty" json:"noPolicy"`
+    Information string              `bson:"information" json:"information"`
+    Status      string              `bson:"status" json:"status"`
 }
 
 const (

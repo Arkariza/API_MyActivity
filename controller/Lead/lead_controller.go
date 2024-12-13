@@ -31,14 +31,14 @@ func (lc *LeadController) CreateLeadWithAutoStatus(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("userID")
+	userRole, exists := c.Get("Role")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
 	var status string
-	switch userID.(int) {
+	switch userRole.(int) {
 	case 1:
 		status = "Referral"
 	case 2:

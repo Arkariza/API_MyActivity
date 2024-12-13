@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-    // "strconv"
     
 	"github.com/Arkariza/API_MyActivity/controller/Lead"
 	"github.com/gin-gonic/gin"
