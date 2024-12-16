@@ -41,7 +41,7 @@ func main() {
 	callController := CallControllers.NewCallController(models.GetCollection("call"))
 	commentController := CommentController.NewCommentController(models.GetCollection("comments"))
 
-	leadMiddleware := LeadMiddleware.NewLeadMiddleware(authCommand.GetSecretKey())
+	leadMiddleware := middleware.NewLeadMiddleware(authCommand.GetSecretKey())
 	meetMiddleware := MeetMiddleware.NewMeetMiddleware(authCommand.GetSecretKey())
 	callMiddleware := CallMiddleware.NewCallMiddleware(authCommand.GetSecretKey())
 	commentMiddleware := CommentMiddleware.NewCommentMiddleware(authCommand.GetSecretKey())
@@ -54,13 +54,25 @@ func main() {
 		leads := api.Group("/leads")
 		leads.Use(leadMiddleware.AuthenticateLead())
 		{
-			leads.POST("/auto-status", leadController.CreateLeadWithAutoStatus)
+			leads.POST("/add", leadMiddleware.AuthenticateLead(), func(c *gin.Context) {
+				var req LeadController.AddLeadRequest
+			
+				lead, err := leadController.AddLead(c, req)
+				if err != nil {
+					return 
+				}
+			
+				c.JSON(http.StatusCreated, gin.H{
+					"message": "Lead has been created",
+					"data":    lead,
+				})
+			})
 		}
 
 		meets := api.Group("/meets")
 		meets.Use(meetMiddleware.AuthenticateMeet())
 		{
-			meets.POST("/add", meetMiddleware.AuthenticateMeet(), func(c *gin.Context) {
+			meets.POST("/add", func(c *gin.Context) {
 				var req MeetControllers.AddMeetRequest
 				if err := c.ShouldBindJSON(&req); err != nil {
 					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -83,35 +95,36 @@ func main() {
 			meets.DELETE("/:id", meetController.DeleteMeet)
 		}
 
-		calls := api.Group("calls")
+		calls := api.Group("/calls")
 		calls.Use(callMiddleware.AuthenticateCall())
 		{
-			calls.POST("/add", callMiddleware.AuthenticateCall(), func(c *gin.Context) {
+			calls.POST("/add", func(c *gin.Context) {
 				var req CallControllers.AddCallRequest
 				if err := c.ShouldBindJSON(&req); err != nil {
 					c.JSON(http.StatusBadRequest, gin.H{
-						"error": "Invalid request",
+						"error":   "Invalid request",
 						"details": err.Error(),
 					})
 					return
 				}
-				calls, err := callController.AddCall(c, req)
+
+				call, err := callController.AddCall(c, req)
 				if err != nil {
 					log.Printf("Error adding call: %v", err)
-					
 					c.JSON(http.StatusInternalServerError, gin.H{
-						"error": "Failed to create call",
+						"error":   "Failed to create call",
 						"details": err.Error(),
 					})
 					return
 				}
-				
+
 				c.JSON(http.StatusCreated, gin.H{
-					"message": "Call Has Been Created",
-					"data": calls,
+					"message": "Call has been created",
+					"data":    call,
 				})
 			})
 		}
+
 		comments := api.Group("/comments")
 		comments.Use(commentMiddleware.AuthenticateComment())
 		{
