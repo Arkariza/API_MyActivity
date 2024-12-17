@@ -33,6 +33,7 @@ type AddMeetRequest struct {
 	Latitude   float64 `json:"latitude" binding:"required"`
 	Longitude  float64 `json:"longitude" binding:"required"`
 	Address    string  `json:"address" binding:"required"`
+	Date 	   time.Time `json:"date" binding:"required"`
 	Note       string  `json:"note"`
 }
 
@@ -83,6 +84,7 @@ func (mc *MeetController) AddMeet(c *gin.Context, req AddMeetRequest) (*models.M
 		Longitude:      req.Longitude,
 		Note:           req.Note,
 		Address:        req.Address,
+		Date: 			req.Date,
 		CreatedAt:      time.Now(),
 		ProspectStatus: "potential",
 	}

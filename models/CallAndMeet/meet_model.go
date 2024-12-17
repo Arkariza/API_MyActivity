@@ -16,6 +16,7 @@ type Meet struct {
     ProspectStatus string             `bson:"prospect_status" json:"prospect_status"`
     Latitude       float64            `bson:"latitude" json:"latitude"`
     Longitude      float64            `bson:"longitude" json:"longitude"`
+    Date           time.Time          `bson:"date" json:"date"`
     MeetResult     string             `bson:"meet_result" json:"meet_result"`
     CreatedAt      time.Time          `bson:"created_at" json:"created_at"`
     Note           string             `bson:"note" json:"note"`

@@ -31,6 +31,7 @@ func NewCallController(collection *mongo.Collection) *CallController {
 type AddCallRequest struct {
     ClientName      string `json:"client_name" binding:"required"`
     PhoneNum        string `json:"phonenum" binding:"required"`
+	Date 			time.Time `json:"date" binding:"required"`
     Note            string `json:"note,omitempty"`
     ProspectStatus  string `json:"prospect_status,omitempty"`
     CallResult      string `json:"call_result,omitempty"`
