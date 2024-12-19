@@ -26,7 +26,7 @@ func main() {
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:56347"},
+		AllowOrigins:     []string{"http://localhost:50574"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -67,6 +67,7 @@ func main() {
 					"data":    lead,
 				})
 			})
+			leads.GET("/", leadController.GetAllLead)
 		}
 
 		meets := api.Group("/meets")
@@ -123,8 +124,8 @@ func main() {
 					"data":    call,
 				})
 			})
-			leads.GET("/", leadController.GetAllLead)
-
+			calls.GET("/", callController.GetCalls)
+			calls.GET("/:id", callController.GetCallByID)
 		}
 
 		comments := api.Group("/comments")
