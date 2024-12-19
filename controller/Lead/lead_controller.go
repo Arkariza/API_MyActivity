@@ -7,7 +7,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +15,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type LeadController struct {
@@ -61,47 +59,29 @@ func ValidateLeadInput() gin.HandlerFunc {
 }
 
 func (lc *LeadController) GetAllLead(c *gin.Context) {
-	page := c.DefaultQuery("page", "1")
-	limit := c.DefaultQuery("limit", "10")	
+    cursor, err := lc.collection.Find(context.Background(), bson.M{})
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch leads"})
+        return
+    }
+    defer cursor.Close(context.Background())
 
-	pageNum, err := strconv.Atoi(page)
-	if err != nil || pageNum < 1 {
-		pageNum = 1
-	}
+    var leads []models.Lead
+    if err := cursor.All(context.Background(), &leads); err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode leads"})
+        return
+    }
 
-	limitNum, err := strconv.Atoi(limit)
-	if err != nil || limitNum < 1 || limitNum > 100 {
-		limitNum = 10
-	}
+    totalCount, err := lc.collection.CountDocuments(context.Background(), bson.M{})
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count leads"})
+        return
+    }
 
-	skip := (pageNum - 1) * limitNum
-
-	totalCount, err := lc.collection.CountDocuments(context.Background(), bson.M{})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count comments"})
-		return
-	}
-
-	cursor, err := lc.collection.Find(context.Background(), bson.M{}, 
-		options.Find().SetSkip(int64(skip)).SetLimit(int64(limitNum)))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch comments"})
-		return
-	}
-	defer cursor.Close(context.Background())
-
-	var leads []models.Lead
-	if err := cursor.All(context.Background(), &leads); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode comments"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"leads": 	leads,
-		"page":     pageNum,
-		"limit":    limitNum,
-		"total":    totalCount,
-	})
+    c.JSON(http.StatusOK, gin.H{
+        "leads": leads,
+        "total": totalCount,
+    })
 }
 
 
