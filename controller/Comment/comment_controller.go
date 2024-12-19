@@ -78,7 +78,7 @@ func (cc *CommentController) CreateComment(c *gin.Context) {
 
 func (cc *CommentController) GetAllComments(c *gin.Context) {
 	page := c.DefaultQuery("page", "1")
-	limit := c.DefaultQuery("limit", "10")
+	limit := c.DefaultQuery("limit", "10")	
 
 	pageNum, err := strconv.Atoi(page)
 	if err != nil || pageNum < 1 {

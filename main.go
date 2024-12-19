@@ -26,7 +26,7 @@ func main() {
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:60707"},
+		AllowOrigins:     []string{"http://localhost:64597"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -94,7 +94,7 @@ func main() {
 			meets.GET("/:id", meetController.GetMeetByID)
 			meets.DELETE("/:id", meetController.DeleteMeet)
 		}
-
+		
 		calls := api.Group("/calls")
 		calls.Use(callMiddleware.AuthenticateCall())
 		{
@@ -123,6 +123,8 @@ func main() {
 					"data":    call,
 				})
 			})
+			leads.GET("/", leadController.GetAllLead)
+
 		}
 
 		comments := api.Group("/comments")
