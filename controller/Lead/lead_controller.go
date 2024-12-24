@@ -151,7 +151,7 @@ func (cc *LeadController) AddLead(c *gin.Context, req AddLeadRequest) (*models.L
     }
     switch userRole.(int) {
     case 1:
-        lead.Status = models.StatusPending
+        lead.Status = models.StatusOpen
         lead.TypeLead = models.TypeSelf
     case 2:
         lead.Status = models.StatusPending
