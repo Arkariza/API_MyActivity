@@ -46,6 +46,7 @@ type TokenResponse struct {
 	AccessToken string       `json:"access_token"`
 	TokenType   string       `json:"token_type"`
 	ExpiresIn   int64        `json:"expires_in"`
+	Image 		string 	 	 `json:"image"`
 	Username    string  	 `json:"username"`
 	Role        int          `json:"role"`
 	PhoneNum    string       `json:"phone_num"`
@@ -82,6 +83,7 @@ func (c *AuthCommand) Login(ctx context.Context, req LoginRequest) (*TokenRespon
 		ExpiresIn:   24 * 60 * 60, 
 		Username:    user.Username,
 		Role:        user.Role,
+		Image: 	     user.Image,
 		PhoneNum:    user.PhoneNum,
 		Email:       user.Email,
 	}, nil
@@ -125,6 +127,7 @@ func (c *AuthCommand) generateToken(user models.User) (string, error) {
 		"role":     user.Role,
 		"phone_num":user.PhoneNum,
 		"email":	user.Email,
+		"image":	user.Image,
 		"exp":      time.Now().Add(time.Hour * 24).Unix(),
 	}
 
