@@ -10,6 +10,7 @@ import (
 	"github.com/Arkariza/API_MyActivity/controller/Comment"
 	"github.com/Arkariza/API_MyActivity/controller/Lead"
 	"github.com/Arkariza/API_MyActivity/controller/Meet"
+	"github.com/Arkariza/API_MyActivity/controller/Transaction"
 	"github.com/Arkariza/API_MyActivity/controller/User"
 	"github.com/Arkariza/API_MyActivity/middleware/Call"
 	"github.com/Arkariza/API_MyActivity/middleware/Comment"
@@ -26,7 +27,7 @@ func main() {
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:57619"},
+		AllowOrigins:     []string{"http://localhost:55275"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -40,6 +41,8 @@ func main() {
 	meetController := MeetControllers.NewMeetController(models.GetCollection("meet"))
 	callController := CallControllers.NewCallController(models.GetCollection("call"))
 	commentController := CommentController.NewCommentController(models.GetCollection("comments"))
+	transactionController := TransactionController.NewTransactionController(models.GetCollection("leads"))
+
 
 	leadMiddleware := middleware.NewLeadMiddleware(authCommand.GetSecretKey())
 	meetMiddleware := MeetMiddleware.NewMeetMiddleware(authCommand.GetSecretKey())
@@ -67,7 +70,14 @@ func main() {
 					"data":    lead,
 				})
 			})
+			leads.GET("/:id", leadController.GetLeadByID)
 			leads.GET("/", leadController.GetAllLead)
+		}
+
+		transactions := api.Group("/transactions")
+		transactions.Use(leadMiddleware.AuthenticateLead())
+		{
+			transactions.GET("/users", transactionController.GetAllTransactions)
 		}
 
 		meets := api.Group("/meets")

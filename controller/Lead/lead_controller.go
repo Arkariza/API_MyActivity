@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ type AddLeadRequest struct {
 	NumPhone    string             `json:"numphone" binding:"required"`
 	Priority    string             `json:"priority" binding:"required"`
 	Information string             `json:"information"`
+	NoPolicy    int64              `json:"no_policy"`
 	Status      string             `json:"status"`
 	TypeLead    string             `json:"type_lead"`
 }
@@ -100,78 +102,83 @@ func validateToken(c *gin.Context) (string, error) {
 }
 
 func (cc *LeadController) AddLead(c *gin.Context, req AddLeadRequest) (*models.Lead, error) {
-
 	userRole, roleExists := c.Get("Role")
-    userID, idExists := c.Get("UserID")
+	userID, idExists := c.Get("UserID")
 
 	if !roleExists || !idExists {
-        handleError(c, http.StatusForbidden, "User role or ID missing", nil)
-        return nil, errors.New("user role or ID missing")
-    }
+		handleError(c, http.StatusForbidden, "User role or ID missing", nil)
+		return nil, errors.New("user role or ID missing")
+	}
 
 	if c.Request.Body == nil {
-        handleError(c, http.StatusBadRequest, "Empty request body", nil)
-        return nil, errors.New("empty request body")
-    }
+		handleError(c, http.StatusBadRequest, "Empty request body", nil)
+		return nil, errors.New("empty request body")
+	}
 
 	body, readErr := io.ReadAll(c.Request.Body)
-    if readErr != nil {
-        handleError(c, http.StatusBadRequest, "Cannot read request body", readErr)
-        return nil, readErr
-    }
+	if readErr != nil {
+		handleError(c, http.StatusBadRequest, "Cannot read request body", readErr)
+		return nil, readErr
+	}
 
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 
 	if err := json.Unmarshal(body, &req); err != nil {
-        handleError(c, http.StatusBadRequest, "Invalid JSON", err)
-        return nil, err
-    }
+		handleError(c, http.StatusBadRequest, "Invalid JSON", err)
+		return nil, err
+	}
 
 	_, err := validateToken(c)
-    if err != nil {
-        handleError(c, http.StatusUnauthorized, "Invalid authentication", err)
-        return nil, err
-    }
+	if err != nil {
+		handleError(c, http.StatusUnauthorized, "Invalid authentication", err)
+		return nil, err
+	}
 
-    if !roleExists || !idExists {
-        handleError(c, http.StatusForbidden, "User role or ID missing", nil)
-        return nil, errors.New("user role or ID missing")
-    }
-    lead := models.Lead{
-        ID:          primitive.NewObjectID(),
-        UserID:      req.UserID,
-        NumPhone:    req.NumPhone,
-        Priority:    req.Priority,
-        Latitude:    0,
-        Longitude:   0,
-        CreateAt:    time.Now(),
-        DateSubmit:  time.Time{},
-        ClientName:  req.ClientName,
-        Information: req.Information,
-    }
-    switch userRole.(int) {
-    case 1:
-        lead.Status = models.StatusOpen
-        lead.TypeLead = models.TypeSelf
-    case 2:
-        lead.Status = models.StatusPending
-        lead.TypeLead = models.TypeReferral
-    default:
-        handleError(c, http.StatusForbidden, "Invalid user role for this operation", nil)
-        return nil, errors.New("invalid user role")
-    }
-    parsedID, parseErr := primitive.ObjectIDFromHex(userID.(string))
-    if parseErr != nil {
-        handleError(c, http.StatusBadRequest, "Invalid user ID format", parseErr)
-        return nil, parseErr
-    }
-    lead.UserID = parsedID
-    _, dbErr := cc.collection.InsertOne(c, lead)
-    if dbErr != nil {
-        handleError(c, http.StatusInternalServerError, "Failed to save lead", dbErr)
-        return nil, dbErr
-    }
-    return &lead, nil
+	const startRange int64 = 3200000000
+	const rangeSize int64 = 100000000
+	rand.Seed(time.Now().UnixNano())
+	randomNoPolicy := startRange + rand.Int63n(rangeSize)
+
+	lead := models.Lead{
+		ID:          primitive.NewObjectID(),
+		UserID:      req.UserID,
+		NumPhone:    req.NumPhone,
+		Priority:    req.Priority,
+		Latitude:    0,
+		Longitude:   0,
+		CreateAt:    time.Now(),
+		DateSubmit:  time.Time{},
+		ClientName:  req.ClientName,
+		Information: req.Information,
+		NoPolicy:    randomNoPolicy,
+	}
+
+	switch userRole.(int) {
+	case 1:
+		lead.Status = models.StatusOpen
+		lead.TypeLead = models.TypeSelf
+	case 2:
+		lead.Status = models.StatusPending
+		lead.TypeLead = models.TypeReferral
+	default:
+		handleError(c, http.StatusForbidden, "Invalid user role for this operation", nil)
+		return nil, errors.New("invalid user role")
+	}
+
+	parsedID, parseErr := primitive.ObjectIDFromHex(userID.(string))
+	if parseErr != nil {
+		handleError(c, http.StatusBadRequest, "Invalid user ID format", parseErr)
+		return nil, parseErr
+	}
+	lead.UserID = parsedID
+
+	_, dbErr := cc.collection.InsertOne(c, lead)
+	if dbErr != nil {
+		handleError(c, http.StatusInternalServerError, "Failed to save lead", dbErr)
+		return nil, dbErr
+	}
+
+	return &lead, nil
 }
 
 func handleError(c *gin.Context, statusCode int, message string, err error) {
@@ -185,4 +192,27 @@ func handleError(c *gin.Context, statusCode int, message string, err error) {
 			"error": message,
 		})
 	}
+}
+
+func (lc *LeadController) GetLeadByID(c *gin.Context) {
+    leadID := c.Param("id")
+
+    objID, err := primitive.ObjectIDFromHex(leadID)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lead ID"})
+        return
+    }
+    var lead models.Lead
+    err = lc.collection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&lead)
+    if err != nil {
+        if err == mongo.ErrNoDocuments {
+            c.JSON(http.StatusNotFound, gin.H{"error": "Lead not found"})
+        } else {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve lead"})
+        }
+        return
+    }
+    c.JSON(http.StatusOK, gin.H{
+        "lead": lead,
+    })
 }

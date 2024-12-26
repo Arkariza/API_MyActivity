@@ -16,23 +16,23 @@ type Lead struct {
     DateSubmit  time.Time           `bson:"date_submit,omitempty" json:"dateSubmit"`
     ClientName  string              `bson:"clientname" json:"clientName" binding:"required"`
     TypeLead    string              `bson:"type_lead" json:"typeLead"`
-    NoPolicy    int32               `bson:"no_policy,omitempty" json:"noPolicy"`
+    NoPolicy    int64               `bson:"no_policy,omitempty" json:"noPolicy"`
     Information string              `bson:"information" json:"information"`
     Status      string              `bson:"status" json:"status" binding:"required"`
 }
 
 const (
     StatusPending = "Pending"
+    StatusProgress = "OnProgress"
     StatusWin     = "Win"
     StatusLose    = "Lose"
     StatusOpen    = "Open"
-
     TypeReferral = "Reff"
     TypeSelf     = "Self"
 )
 
 func (l *Lead) ValidateStatus() bool {
-    return l.Status == StatusPending || l.Status == StatusWin || l.Status == StatusLose || l.Status == StatusOpen
+    return l.Status == StatusPending || l.Status == StatusWin || l.Status == StatusProgress || l.Status == StatusLose || l.Status == StatusOpen
 }
 
 func (l *Lead) ValidateTypeLead() bool {
