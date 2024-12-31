@@ -59,33 +59,33 @@ func ValidateLeadInput() gin.HandlerFunc {
 		c.Next()
 	}
 }
+ 
 
 func (lc *LeadController) GetAllLead(c *gin.Context) {
-    cursor, err := lc.collection.Find(context.Background(), bson.M{})
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch leads"})
-        return
-    }
-    defer cursor.Close(context.Background())
+	cursor, err := lc.collection.Find(context.Background(), bson.M{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch leads"})
+		return
+	}
+	defer cursor.Close(context.Background())
 
-    var leads []models.Lead
-    if err := cursor.All(context.Background(), &leads); err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode leads"})
-        return
-    }
+	var leads []models.Lead
+	if err := cursor.All(context.Background(), &leads); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to decode leads"})
+		return
+	}
 
-    totalCount, err := lc.collection.CountDocuments(context.Background(), bson.M{})
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count leads"})
-        return
-    }
+	totalCount, err := lc.collection.CountDocuments(context.Background(), bson.M{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count leads"})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{
-        "leads": leads,
-        "total": totalCount,
-    })
+	c.JSON(http.StatusOK, gin.H{
+		"leads": leads,
+		"total": totalCount,
+	})
 }
-
 
 func validateToken(c *gin.Context) (string, error) {
 	authHeader := c.GetHeader("Authorization")
@@ -99,6 +99,26 @@ func validateToken(c *gin.Context) (string, error) {
 	}
 
 	return tokenString, nil
+}
+
+func (lc *LeadController) getUsersByRole(role int) ([]primitive.ObjectID, error) {
+	userCollection := lc.collection.Database().Collection("users")
+	cursor, err := userCollection.Find(context.Background(), bson.M{"role": role})
+	if err != nil {
+		return nil, err
+	}
+	defer cursor.Close(context.Background())
+	var users []struct {
+		ID primitive.ObjectID `bson:"_id"`
+	}
+	if err := cursor.All(context.Background(), &users); err != nil {
+		return nil, err
+	}
+	var userIDs []primitive.ObjectID
+	for _, user := range users {
+		userIDs = append(userIDs, user.ID)
+	}
+	return userIDs, nil
 }
 
 func (cc *LeadController) AddLead(c *gin.Context, req AddLeadRequest) (*models.Lead, error) {
@@ -160,6 +180,12 @@ func (cc *LeadController) AddLead(c *gin.Context, req AddLeadRequest) (*models.L
 	case 2:
 		lead.Status = models.StatusPending
 		lead.TypeLead = models.TypeReferral
+		userIDs, err := cc.getUsersByRole(1)
+		if err != nil {
+			handleError(c, http.StatusInternalServerError, "Failed to fetch users with Role 1", err)
+			return nil, err
+		}
+		lead.AsignTo = userIDs
 	default:
 		handleError(c, http.StatusForbidden, "Invalid user role for this operation", nil)
 		return nil, errors.New("invalid user role")
@@ -195,24 +221,24 @@ func handleError(c *gin.Context, statusCode int, message string, err error) {
 }
 
 func (lc *LeadController) GetLeadByID(c *gin.Context) {
-    leadID := c.Param("id")
+	leadID := c.Param("id")
 
-    objID, err := primitive.ObjectIDFromHex(leadID)
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lead ID"})
-        return
-    }
-    var lead models.Lead
-    err = lc.collection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&lead)
-    if err != nil {
-        if err == mongo.ErrNoDocuments {
-            c.JSON(http.StatusNotFound, gin.H{"error": "Lead not found"})
-        } else {
-            c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve lead"})
-        }
-        return
-    }
-    c.JSON(http.StatusOK, gin.H{
-        "lead": lead,
-    })
+	objID, err := primitive.ObjectIDFromHex(leadID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid lead ID"})
+		return
+	}
+	var lead models.Lead
+	err = lc.collection.FindOne(context.Background(), bson.M{"_id": objID}).Decode(&lead)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Lead not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to retrieve lead"})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"lead": lead,
+	})
 }

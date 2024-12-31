@@ -19,6 +19,7 @@ type Lead struct {
     NoPolicy    int64               `bson:"no_policy,omitempty" json:"noPolicy"`
     Information string              `bson:"information" json:"information"`
     Status      string              `bson:"status" json:"status" binding:"required"`
+    AsignTo     []primitive.ObjectID `bson:"asign_to"`
 }
 
 const (
