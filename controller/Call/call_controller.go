@@ -23,9 +23,7 @@ type CallController struct {
 }
 
 func NewCallController(collection *mongo.Collection) *CallController {
-	return &CallController{
-		collection: collection,
-	}
+	return &CallController{collection: collection,}
 }
 
 type AddCallRequest struct {
@@ -50,7 +48,6 @@ func validateToken(c *gin.Context) (string, error) {
     if !strings.HasPrefix(authHeader, "Bearer ") {
         return "", errors.New("invalid token format")
     }
-
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 	if tokenString == "" {
         return "", errors.New("empty token")

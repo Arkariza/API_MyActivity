@@ -6,20 +6,20 @@ import (
 )
 
 type Lead struct {
-    ID          primitive.ObjectID  `bson:"_id,omitempty" json:"id"`
-    UserID      primitive.ObjectID  `bson:"user_id" json:"user_id"`
-    NumPhone    string              `bson:"numphone" json:"numPhone" binding:"required"`
-    Priority    string              `bson:"priority" json:"priority" binding:"required"`
-    Latitude    float64             `bson:"latitude" json:"latitude" binding:"required"`
-    Longitude   float64             `bson:"longitude" json:"longitude" binding:"required"`
-    CreateAt    time.Time           `bson:"created_at" json:"createdAt"`
-    DateSubmit  time.Time           `bson:"date_submit,omitempty" json:"dateSubmit"`
-    ClientName  string              `bson:"clientname" json:"clientName" binding:"required"`
-    TypeLead    string              `bson:"type_lead" json:"typeLead"`
-    NoPolicy    int64               `bson:"no_policy,omitempty" json:"noPolicy"`
-    Information string              `bson:"information" json:"information"`
-    Status      string              `bson:"status" json:"status" binding:"required"`
-    AsignTo     []primitive.ObjectID `bson:"asign_to"`
+    ID          primitive.ObjectID      `bson:"_id,omitempty" json:"id"`
+    UserID      primitive.ObjectID      `bson:"user_id" json:"user_id"`
+    NumPhone    string                  `bson:"numphone" json:"numPhone" binding:"required"`
+    Priority    string                  `bson:"priority" json:"priority" binding:"required"`
+    Latitude    float64                 `bson:"latitude" json:"latitude" binding:"required"`
+    Longitude   float64                 `bson:"longitude" json:"longitude" binding:"required"`
+    CreateAt    time.Time               `bson:"created_at" json:"createdAt"`
+    DateSubmit  time.Time               `bson:"date_submit,omitempty" json:"dateSubmit"`
+    ClientName  string                  `bson:"clientname" json:"clientName" binding:"required"`
+    TypeLead    string                  `bson:"type_lead" json:"typeLead"`
+    NoPolicy    int64                   `bson:"no_policy,omitempty" json:"noPolicy"`
+    Information string                  `bson:"information" json:"information"`
+    Status      string                  `bson:"status" json:"status" binding:"required"`
+    AsignTo     string                  `bson:"asign_to"`
 }
 
 const (
