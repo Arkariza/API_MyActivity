@@ -9,11 +9,13 @@ import (
 	"github.com/Arkariza/API_MyActivity/controller/Call"
 	"github.com/Arkariza/API_MyActivity/controller/Comment"
 	"github.com/Arkariza/API_MyActivity/controller/Lead"
-	"github.com/Arkariza/API_MyActivity/controller/Meet"
 	"github.com/Arkariza/API_MyActivity/controller/User"
+	"github.com/Arkariza/API_MyActivity/controller/Meet"
+	"github.com/Arkariza/API_MyActivity/controller/Transaction"
 	"github.com/Arkariza/API_MyActivity/middleware/Call"
 	"github.com/Arkariza/API_MyActivity/middleware/Comment"
 	"github.com/Arkariza/API_MyActivity/middleware/Lead"
+	"github.com/Arkariza/API_MyActivity/middleware/User"
 	"github.com/Arkariza/API_MyActivity/middleware/Meet"
 	"github.com/Arkariza/API_MyActivity/models"
 	"github.com/gin-contrib/cors"
@@ -26,7 +28,7 @@ func main() {
 
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:50574"},
+		AllowOrigins:     []string{"http://localhost:58432"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -35,14 +37,16 @@ func main() {
 	}))
 
 	authCommand := auth.NewAuthCommand(models.GetCollection("users"))
-	userController := UserControllers.NewUserController(authCommand)
+	userController := UserControllers.NewUserController(authCommand, models.GetCollection("users"))
 	leadController := LeadController.NewLeadController(models.GetCollection("leads"))
 	meetController := MeetControllers.NewMeetController(models.GetCollection("meet"))
 	callController := CallControllers.NewCallController(models.GetCollection("call"))
 	commentController := CommentController.NewCommentController(models.GetCollection("comments"))
+	transactionController := TransactionController.NewTransactionController(models.GetCollection("leads"))
 
 	leadMiddleware := middleware.NewLeadMiddleware(authCommand.GetSecretKey())
 	meetMiddleware := MeetMiddleware.NewMeetMiddleware(authCommand.GetSecretKey())
+	userMiddleware := UserMiddleware.NewUserMiddleware(authCommand.GetSecretKey())
 	callMiddleware := CallMiddleware.NewCallMiddleware(authCommand.GetSecretKey())
 	commentMiddleware := CommentMiddleware.NewCommentMiddleware(authCommand.GetSecretKey())
 
@@ -50,6 +54,14 @@ func main() {
 	{
 		api.POST("/register", userController.Register)
 		api.POST("/login", userController.Login)
+
+		users := api.Group("/users")
+		users.Use(userMiddleware.AuthenticateUser())
+		{
+			users.GET("/", userController.GetUser)
+			users.GET("/:id", userController.GetUserByID)
+			users.PUT("/:id", userController.EditProfile)
+		}
 
 		leads := api.Group("/leads")
 		leads.Use(leadMiddleware.AuthenticateLead())
@@ -67,7 +79,16 @@ func main() {
 					"data":    lead,
 				})
 			})
+			leads.PUT("/change/:id", leadController.ChangeLeadStatus)
+			leads.GET("/:id", leadController.GetLeadByID)
 			leads.GET("/", leadController.GetAllLead)
+		}
+
+		transactions := api.Group("/transactions")
+		transactions.Use(leadMiddleware.AuthenticateLead())
+		{
+			transactions.GET("/users", transactionController.GetAllTransactions)
+			transactions.PUT("/acc", transactionController.UpdateTransactionStatus)
 		}
 
 		meets := api.Group("/meets")

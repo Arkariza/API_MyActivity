@@ -4,23 +4,27 @@ import (
     "errors"
     "strings"
     "time"
+    "regexp"
 
     "go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type Meet struct {
     ID             primitive.ObjectID `bson:"_id,omitempty" json:"id,omitempty"`
+    UserID         primitive.ObjectID `bson:"user_id" json:"user_id"`
     PhoneNum       string             `bson:"phone_num" json:"phone_num"`
     ClientName     string             `bson:"client_name" json:"client_name"`
     Address        string             `bson:"address" json:"address"`
     ProspectStatus string             `bson:"prospect_status" json:"prospect_status"`
     Latitude       float64            `bson:"latitude" json:"latitude"`
     Longitude      float64            `bson:"longitude" json:"longitude"`
-    Date           time.Time          `bson:"date" json:"date"`
+    Date           string             `bson:"date" json:"date"`
     MeetResult     string             `bson:"meet_result" json:"meet_result"`
     CreatedAt      time.Time          `bson:"created_at" json:"created_at"`
     Note           string             `bson:"note" json:"note"`
 }
+
+var dateFormat = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 
 func (m *Meet) Validate() error {
     m.ClientName = strings.TrimSpace(m.ClientName)
@@ -30,7 +34,9 @@ func (m *Meet) Validate() error {
     if len(m.ClientName) < 2 || len(m.ClientName) > 100 {
         return errors.New("client name must be between 2 and 100 characters")
     }
-
+    if !dateFormat.MatchString(m.Date) {
+        return errors.New("invalid date format, must be YYYY-MM-DD")
+    }
     m.Address = strings.TrimSpace(m.Address)
     if m.Address == "" {
         return errors.New("address is required and cannot be empty")
